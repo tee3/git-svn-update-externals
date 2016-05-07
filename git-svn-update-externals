@@ -11,6 +11,14 @@ verbose = True
 fake_input = False
 
 
+fake_data = \
+    '# this is a comment\n' + \
+    '/http://svn.example.com/libraries/libl0/tags/1.0.0 lib/src/libl0\n' + \
+    '/lib/src/libl1 http://libraries/libl1/tags/0.20.1\n' + \
+    '/lib/src/libl2 http://libraries/libl2/trunk\n' + \
+    '/lib/src/libl3 http://libraries/libl3/branches/devel'
+
+
 def parse_svn_externals_line(line):
     items = line.split()
 
@@ -166,12 +174,7 @@ def generate_svn_externals_from_cwd():
             # @todo for 2.7, data = subprocess.check_output(command, shell=True)
             data = subprocess.Popen(command.split(), stdout=subprocess.PIPE).communicate()[0]
     else:
-        data = \
-               '# this is a comment\n' + \
-               '/http://svn.example.com/libraries/libl0/tags/1.0.0 lib/src/libl0\n' + \
-               '/lib/src/libl1 http://libraries/libl1/tags/0.20.1\n' + \
-               '/lib/src/libl2 http://libraries/libl2/trunk\n' + \
-               '/lib/src/libl3 http://libraries/libl3/branches/devel'
+        data = fake_data
 
     lines = data.split('\n')
     data = ''
