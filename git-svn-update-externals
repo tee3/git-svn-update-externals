@@ -1,0 +1,297 @@
+#!/usr/bin/env python
+#
+# This program gets all svn:externals (recursively) for a given
+# git-svn repository.  This requires access to the Subversion
+# repository from which the repository came as this uses the
+# 'show-externals' functionality of git-svn to find the external
+# referernces.
+#
+#    $ git svn show-externals
+#
+# This clones all externals completely assuming the standard layout of
+# Subversion projects and checks out a the correct trunk, tag, or
+# branch to support the externals reference.  Note that this makes
+# each repository have a detached head so making changes can be
+# complicated.  While this will properly checkout the correct trunk,
+# tag, or branch, it may move user's working copy around, so be
+# careful.
+#
+# This can be called repeatedly without issue and should be able to
+# clean up most issues.
+#
+# As this can take a long time to run, especially over a network, it
+# is recommended to do a git-svn / git-svn-update-externals once from
+# scratch, then copy that directory structure for additional working
+# trees.
+#
+# @todo This does not store any information about svn:externals in
+# the tree as it changes for each checkout and is stored within the
+# Subversion repository.  It would be nice to cache this information,
+# but I think it is not worth the effort.
+#
+# @todo This does not remove directories associated with deleted /
+# moved repositories.  This might be a reason to track this
+# information in a file.  It should properly check out differing
+# versions.
+#
+# @todo This should definitely add and remove the directories
+# associated with svn:externals to the .git/info/exclude file as they
+# are added / removed.  This is currently not done as it requires
+# parsing that file and knowing which are associated with
+# svn:externals.
+#
+# Using with git-svn
+# ==================
+#
+# 1. Clone your root repository with git-svn as normally
+#
+#    $ git svn clone -s http://svn.hostname.com/svn/path/to/root root-svn.git
+#
+# 2. Run git-svn-update-externals at the root of the cloned repository
+#
+#    $ cd root-svn.git
+#    $ git svn-update-externals
+#
+# 3. (optional) Install a post-checkout hook to update externals on
+#    checkout.  This will be slow, but does guarantee that every
+#    checkout will work as it should with the correct version of
+#    externals.
+#
+#    $ vi .git/hooks/post-checkout
+#    git svn-update-externals
+
+import os
+import subprocess
+
+import string
+import urlparse
+
+dryrun = False
+verbose = True
+fake_input = False
+
+
+def parse_svn_externals_line(line):
+    items = line.split()
+
+    if len(items) != 2:
+        return None
+
+    first = items[0]
+    second = items[1]
+
+    # @todo hack to deal with 'new' svn:externals format
+    if (first[0] == 'h' and
+        first[1] == 't' and
+        first[2] == 't' and
+        first[3] == 'p'):
+        directory = second
+        url = first
+    else:
+        directory = first
+        url = second
+
+    externals = {
+        'directory': directory,
+        'url': url,
+    }
+
+    url_components = url.split("/")
+
+    # parse the url, find the base url and branch name, and verify
+
+    base_url = url
+    branchname = ""
+    branchpath = ""
+
+    if url_components[-1] == 'trunk':
+        base_url = string.join(url_components[0:-1], "/")
+        branchpath = 'master'
+        branchname = 'master'
+    if url_components[-2] == 'branches':
+        base_url = string.join(url_components[0:-2], "/")
+        branchname = url_components[-1]
+        branchpath = 'origin/%s' % (branchname)
+    elif url_components[-2] == 'tags':
+        base_url = string.join(url_components[0:-2], "/")
+        branchname = url_components[-1]
+        branchpath = 'origin/tags/%s' % (branchname)
+
+    # @todo hack to redirect http:// to https://
+    xxx = urlparse.urlparse(base_url)
+    scheme = xxx.scheme
+    if xxx.scheme == "http":
+        scheme = "https"
+
+    externals['original_base_original'] = base_url
+    externals['base_url'] = urlparse.urlunparse((scheme, xxx[1], xxx[2], xxx[3], xxx[4], xxx[5]))
+    externals['branchname'] = branchname
+    externals['branchpath'] = branchpath
+
+    return externals
+
+
+def parse_svn_externals_format(data):
+    externals = {}
+    for line in data.split("\n"):
+        e = parse_svn_externals_line(line)
+
+        if e is None:
+            continue
+
+        assert 'directory' in e
+
+        externals[e['directory']] = e
+
+    return externals
+
+
+# this does the work given the externals
+def operate_on_externals_from_cwd(externals):
+    for directory in externals.keys():
+        d = externals[directory]['directory']
+
+        assert d == directory
+
+        # @todo parse gitignore and set it
+
+        bu = externals[d]['base_url']
+        bp = externals[d]['branchpath']
+
+        if not os.path.exists(d):
+            command = "git svn clone -s %s %s" % (bu, d)
+            if verbose or dryrun:
+                print "running: %s" % (command)
+            if not dryrun:
+                os.system(command)
+
+        if not dryrun:
+            if not os.path.exists(d):
+                exit(1)  # totally broken
+
+        if not dryrun:
+            rootdir = os.getcwd()
+            os.chdir("%s" % (d))
+
+        # fetch new information
+        command = "git svn fetch --fetch-all"
+        if verbose or dryrun:
+            print "running: %s" % (command)
+        if not dryrun:
+            os.system(command)
+
+        # checkout the right branch
+        command = "git checkout %s" % (bp)
+        if verbose or dryrun:
+            print "running: %s" % (command)
+        if not dryrun:
+            os.system(command)
+
+        # recurse into each svn:external as we find it
+        if verbose or dryrun:
+            print "running: finding svn:externals at %s\n" % (d)
+        if not dryrun:
+            git_svn_update_externals(d)
+
+        if not dryrun:
+            os.chdir(rootdir)
+
+
+def generate_svn_externals_from_cwd():
+    data = ""
+    if not fake_input:
+        revision = None
+        command = "git rev-parse HEAD"
+        if verbose or dryrun:
+            print "running: %s" % (command)
+        if not dryrun:
+            # @todo for 2.7, data = subprocess.check_output(command, shell=True)
+            data = subprocess.Popen(command.split(), stdout=subprocess.PIPE).communicate()[0]
+
+            commitid = data
+
+            if commitid is not None:
+                command = "git svn find-rev %s" % (commitid)
+                if verbose or dryrun:
+                    print "running: %s" % (command)
+                if not dryrun:
+                    # @todo for 2.7, data = subprocess.check_output(command, shell=True)
+                    revision = subprocess.Popen(command.split(), stdout=subprocess.PIPE).communicate()[0]
+                    if revision == '':
+                        revision = None
+
+        command = "git svn show-externals"
+        if revision is not None:
+            command += " -r%s" % (revision)
+        if verbose or dryrun:
+            print "running: %s" % (command)
+        if not dryrun:
+            # @todo for 2.7, data = subprocess.check_output(command, shell=True)
+            data = subprocess.Popen(command.split(), stdout=subprocess.PIPE).communicate()[0]
+    else:
+        data = \
+               "# this is a comment\n" + \
+               "/http://svn.example.com/libraries/libl0/tags/1.0.0 lib/src/libl0\n" + \
+               "/lib/src/libl1 http://libraries/libl1/tags/0.20.1\n" + \
+               "/lib/src/libl2 http://libraries/libl2/trunk\n" + \
+               "/lib/src/libl3 http://libraries/libl3/branches/devel"
+
+    lines = data.split('\n')
+    data = ""
+    for line in lines:
+        if len(line) == 0:
+            continue
+
+        # remove comments
+        if line[0] == '#':
+            continue
+
+        items = line.split()
+
+        # @todo should at least print a warning or error
+        if len(items) != 2:
+            continue
+
+        first = items[0]
+        second = items[1]
+
+        # remove absolute references from directories
+        # @todo hack to deal with 'new' svn:externals format
+        if (first[0] == '/' and
+            (first[1] == 'h' and
+             first[2] == 't' and
+             first[3] == 't' and
+             first[4] == 'p')):
+            line = first[1:] + ' ' + './' + second
+        elif first[0] == '/':
+            line = '.' + first + ' ' + second
+
+        data = data + line + '\n'
+
+    return data
+
+
+def git_svn_update_externals(directory):
+    data = generate_svn_externals_from_cwd()
+    externals = parse_svn_externals_format(data)
+
+    # @todo check if any differences before doing anything at all
+    # original_externals = None
+    # if os.exists(".gitsvnsubmodules"):
+    #       original_externals = read(".gitsvnsubmodules")
+    # if externals == original_externals:
+    #     exit(0)
+    # if not dryrun:
+    #     print externals > .gitsvnsubmodules
+
+    # operate on the externals data
+    operate_on_externals_from_cwd(externals)
+
+if __name__ == '__main__':
+    # fetch before generating externals
+    command = 'git svn fetch --all'
+    if verbose:
+        print 'running: ', command
+    if not dryrun:
+        os.system(command)
+    git_svn_update_externals(os.getcwd())
