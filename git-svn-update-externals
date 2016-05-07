@@ -36,32 +36,32 @@ def parse_svn_externals_line(line):
         'url': url,
     }
 
-    url_components = url.split("/")
+    url_components = url.split('/')
 
     # parse the url, find the base url and branch name, and verify
 
     base_url = url
-    branchname = ""
-    branchpath = ""
+    branchname = ''
+    branchpath = ''
 
     if url_components[-1] == 'trunk':
-        base_url = string.join(url_components[0:-1], "/")
+        base_url = string.join(url_components[0:-1], '/')
         branchpath = 'master'
         branchname = 'master'
     if url_components[-2] == 'branches':
-        base_url = string.join(url_components[0:-2], "/")
+        base_url = string.join(url_components[0:-2], '/')
         branchname = url_components[-1]
         branchpath = 'origin/%s' % (branchname)
     elif url_components[-2] == 'tags':
-        base_url = string.join(url_components[0:-2], "/")
+        base_url = string.join(url_components[0:-2], '/')
         branchname = url_components[-1]
         branchpath = 'origin/tags/%s' % (branchname)
 
     # @todo hack to redirect http:// to https://
     xxx = urlparse.urlparse(base_url)
     scheme = xxx.scheme
-    if xxx.scheme == "http":
-        scheme = "https"
+    if xxx.scheme == 'http':
+        scheme = 'https'
 
     externals['original_base_original'] = base_url
     externals['base_url'] = urlparse.urlunparse((scheme, xxx[1], xxx[2], xxx[3], xxx[4], xxx[5]))
@@ -73,7 +73,7 @@ def parse_svn_externals_line(line):
 
 def parse_svn_externals_format(data):
     externals = {}
-    for line in data.split("\n"):
+    for line in data.split('\n'):
         e = parse_svn_externals_line(line)
 
         if e is None:
@@ -99,9 +99,9 @@ def operate_on_externals_from_cwd(externals):
         bp = externals[d]['branchpath']
 
         if not os.path.exists(d):
-            command = "git svn clone -s %s %s" % (bu, d)
+            command = 'git svn clone -s %s %s' % (bu, d)
             if verbose or dryrun:
-                print "running: %s" % (command)
+                print 'running: %s' % (command)
             if not dryrun:
                 os.system(command)
 
@@ -111,25 +111,25 @@ def operate_on_externals_from_cwd(externals):
 
         if not dryrun:
             rootdir = os.getcwd()
-            os.chdir("%s" % (d))
+            os.chdir('%s' % (d))
 
         # fetch new information
-        command = "git svn fetch --fetch-all"
+        command = 'git svn fetch --fetch-all'
         if verbose or dryrun:
-            print "running: %s" % (command)
+            print 'running: %s' % (command)
         if not dryrun:
             os.system(command)
 
         # checkout the right branch
-        command = "git checkout %s" % (bp)
+        command = 'git checkout %s' % (bp)
         if verbose or dryrun:
-            print "running: %s" % (command)
+            print 'running: %s' % (command)
         if not dryrun:
             os.system(command)
 
         # recurse into each svn:external as we find it
         if verbose or dryrun:
-            print "running: finding svn:externals at %s\n" % (d)
+            print 'running: finding svn:externals at %s\n' % (d)
         if not dryrun:
             git_svn_update_externals(d)
 
@@ -138,12 +138,12 @@ def operate_on_externals_from_cwd(externals):
 
 
 def generate_svn_externals_from_cwd():
-    data = ""
+    data = ''
     if not fake_input:
         revision = None
-        command = "git rev-parse HEAD"
+        command = 'git rev-parse HEAD'
         if verbose or dryrun:
-            print "running: %s" % (command)
+            print 'running: %s' % (command)
         if not dryrun:
             # @todo for 2.7, data = subprocess.check_output(command, shell=True)
             data = subprocess.Popen(command.split(), stdout=subprocess.PIPE).communicate()[0]
@@ -151,33 +151,33 @@ def generate_svn_externals_from_cwd():
             commitid = data
 
             if commitid is not None:
-                command = "git svn find-rev %s" % (commitid)
+                command = 'git svn find-rev %s' % (commitid)
                 if verbose or dryrun:
-                    print "running: %s" % (command)
+                    print 'running: %s' % (command)
                 if not dryrun:
                     # @todo for 2.7, data = subprocess.check_output(command, shell=True)
                     revision = subprocess.Popen(command.split(), stdout=subprocess.PIPE).communicate()[0]
                     if revision == '':
                         revision = None
 
-        command = "git svn show-externals"
+        command = 'git svn show-externals'
         if revision is not None:
-            command += " -r%s" % (revision)
+            command += ' -r%s' % (revision)
         if verbose or dryrun:
-            print "running: %s" % (command)
+            print 'running: %s' % (command)
         if not dryrun:
             # @todo for 2.7, data = subprocess.check_output(command, shell=True)
             data = subprocess.Popen(command.split(), stdout=subprocess.PIPE).communicate()[0]
     else:
         data = \
-               "# this is a comment\n" + \
-               "/http://svn.example.com/libraries/libl0/tags/1.0.0 lib/src/libl0\n" + \
-               "/lib/src/libl1 http://libraries/libl1/tags/0.20.1\n" + \
-               "/lib/src/libl2 http://libraries/libl2/trunk\n" + \
-               "/lib/src/libl3 http://libraries/libl3/branches/devel"
+               '# this is a comment\n' + \
+               '/http://svn.example.com/libraries/libl0/tags/1.0.0 lib/src/libl0\n' + \
+               '/lib/src/libl1 http://libraries/libl1/tags/0.20.1\n' + \
+               '/lib/src/libl2 http://libraries/libl2/trunk\n' + \
+               '/lib/src/libl3 http://libraries/libl3/branches/devel'
 
     lines = data.split('\n')
-    data = ""
+    data = ''
     for line in lines:
         if len(line) == 0:
             continue
@@ -217,8 +217,8 @@ def git_svn_update_externals(directory):
 
     # @todo check if any differences before doing anything at all
     # original_externals = None
-    # if os.exists(".gitsvnsubmodules"):
-    #       original_externals = read(".gitsvnsubmodules")
+    # if os.exists('.gitsvnsubmodules'):
+    #       original_externals = read('.gitsvnsubmodules')
     # if externals == original_externals:
     #     exit(0)
     # if not dryrun:
