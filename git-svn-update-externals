@@ -90,7 +90,7 @@ def parse_svn_externals_line(line):
     if xxx.scheme == 'http':
         scheme = 'https'
 
-    externals['original_base_original'] = base_url
+    externals['original_base_url'] = base_url
     externals['base_url'] = urlparse.urlunparse((scheme, xxx[1], xxx[2], xxx[3], xxx[4], xxx[5]))
     externals['branchname'] = branchname
     externals['branchpath'] = branchpath
