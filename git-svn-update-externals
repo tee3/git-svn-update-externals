@@ -21,10 +21,7 @@ def parse_svn_externals_line(line):
     second = items[1]
 
     # @todo hack to deal with 'new' svn:externals format
-    if (first[0] == 'h' and
-        first[1] == 't' and
-        first[2] == 't' and
-        first[3] == 'p'):
+    if first[0:4] == 'http':
         directory = second
         url = first
     else:
@@ -197,11 +194,7 @@ def generate_svn_externals_from_cwd():
 
         # remove absolute references from directories
         # @todo hack to deal with 'new' svn:externals format
-        if (first[0] == '/' and
-            (first[1] == 'h' and
-             first[2] == 't' and
-             first[3] == 't' and
-             first[4] == 'p')):
+        if first[0:5] == '/http':
             line = first[1:] + ' ' + './' + second
         elif first[0] == '/':
             line = '.' + first + ' ' + second
