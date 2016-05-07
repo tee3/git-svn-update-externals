@@ -20,6 +20,28 @@ fake_data = \
 
 
 def parse_svn_externals_line(line):
+    if len(line) == 0:
+        return None
+
+    # remove comments
+    if line[0] == '#':
+        return None
+
+    items = line.split()
+
+    if len(items) != 2:
+        return None
+
+    first = items[0]
+    second = items[1]
+
+    # remove absolute references from directories
+    # @todo hack to deal with 'new' svn:externals format
+    if first[0:5] == '/http':
+        line = first[1:] + ' ' + './' + second
+    elif first[0] == '/':
+        line = '.' + first + ' ' + second
+
     items = line.split()
 
     if len(items) != 2:
@@ -175,34 +197,6 @@ def generate_svn_externals_from_cwd():
             data = subprocess.Popen(command.split(), stdout=subprocess.PIPE).communicate()[0]
     else:
         data = fake_data
-
-    lines = data.split('\n')
-    data = ''
-    for line in lines:
-        if len(line) == 0:
-            continue
-
-        # remove comments
-        if line[0] == '#':
-            continue
-
-        items = line.split()
-
-        # @todo should at least print a warning or error
-        if len(items) != 2:
-            continue
-
-        first = items[0]
-        second = items[1]
-
-        # remove absolute references from directories
-        # @todo hack to deal with 'new' svn:externals format
-        if first[0:5] == '/http':
-            line = first[1:] + ' ' + './' + second
-        elif first[0] == '/':
-            line = '.' + first + ' ' + second
-
-        data = data + line + '\n'
 
     return data
 
