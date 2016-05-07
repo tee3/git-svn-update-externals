@@ -1,22 +1,17 @@
 #!/usr/bin/env python
 
+import unittest
+
 import os
 import subprocess
 
 import string
 import urlparse
 
+runtests = False
+
 dryrun = False
 verbose = True
-fake_input = False
-
-
-fake_data = \
-    '# this is a comment\n' + \
-    '/http://svn.example.com/libraries/libl0/tags/1.0.0 lib/src/libl0\n' + \
-    '/lib/src/libl1 http://libraries/libl1/tags/0.20.1\n' + \
-    '/lib/src/libl2 http://libraries/libl2/trunk\n' + \
-    '/lib/src/libl3 http://libraries/libl3/branches/devel'
 
 
 def parse_svn_externals_line(line):
@@ -200,10 +195,7 @@ def generate_svn_externals_from_cwd():
 
 
 def git_svn_update_externals(directory):
-    if not fake_input:
-        data = generate_svn_externals_from_cwd()
-    else:
-        data = fake_data
+    data = generate_svn_externals_from_cwd()
     externals = parse_svn_externals_format(data)
 
     # @todo check if any differences before doing anything at all
@@ -218,7 +210,61 @@ def git_svn_update_externals(directory):
     # operate on the externals data
     operate_on_externals_from_cwd(externals)
 
+
+class TestGitSvnUpdateExternals(unittest.TestCase):
+
+    def test_git_svn_parse_svn_externals_format(self):
+        data = \
+            '# this is a comment\n' + \
+            '' + \
+            ' ' + \
+            '/http://svn.example.com/libraries/libl0/tags/1.0.0 lib/src/libl0\n' + \
+            '/lib/src/libl1 http://libraries/libl1/tags/0.20.1\n' + \
+            '/lib/src/libl2 http://libraries/libl2/trunk\n' + \
+            '/lib/src/libl3 http://libraries/libl3/branches/devel'
+
+        externals = parse_svn_externals_format(data)
+
+        self.assertIn('./lib/src/libl0',externals)
+        self.assertIn('directory',externals['./lib/src/libl0'])
+        self.assertEqual(externals['./lib/src/libl0']['directory'],'./lib/src/libl0')
+        self.assertEqual(externals['./lib/src/libl0']['url'],'http://svn.example.com/libraries/libl0/tags/1.0.0')
+        self.assertEqual(externals['./lib/src/libl0']['original_base_url'],'http://svn.example.com/libraries/libl0')
+        self.assertEqual(externals['./lib/src/libl0']['base_url'],'https://svn.example.com/libraries/libl0')
+        self.assertEqual(externals['./lib/src/libl0']['branchname'],'1.0.0')
+        self.assertEqual(externals['./lib/src/libl0']['branchpath'],'origin/tags/1.0.0')
+
+        self.assertIn('./lib/src/libl1',externals)
+        self.assertIn('directory',externals['./lib/src/libl1'])
+        self.assertEqual(externals['./lib/src/libl1']['directory'],'./lib/src/libl1')
+        self.assertEqual(externals['./lib/src/libl1']['url'],'http://libraries/libl1/tags/0.20.1')
+        self.assertEqual(externals['./lib/src/libl1']['original_base_url'],'http://libraries/libl1')
+        self.assertEqual(externals['./lib/src/libl1']['base_url'],'https://libraries/libl1')
+        self.assertEqual(externals['./lib/src/libl1']['branchname'],'0.20.1')
+        self.assertEqual(externals['./lib/src/libl1']['branchpath'],'origin/tags/0.20.1')
+
+        self.assertIn('./lib/src/libl2',externals)
+        self.assertIn('directory',externals['./lib/src/libl2'])
+        self.assertEqual(externals['./lib/src/libl2']['directory'],'./lib/src/libl2')
+        self.assertEqual(externals['./lib/src/libl2']['url'],'http://libraries/libl2/trunk')
+        self.assertEqual(externals['./lib/src/libl2']['original_base_url'],'http://libraries/libl2')
+        self.assertEqual(externals['./lib/src/libl2']['base_url'],'https://libraries/libl2')
+        self.assertEqual(externals['./lib/src/libl2']['branchname'],'master')
+        self.assertEqual(externals['./lib/src/libl2']['branchpath'],'master')
+
+        self.assertIn('./lib/src/libl3',externals)
+        self.assertIn('directory',externals['./lib/src/libl3'])
+        self.assertEqual(externals['./lib/src/libl3']['directory'],'./lib/src/libl3')
+        self.assertEqual(externals['./lib/src/libl3']['url'],'http://libraries/libl3/branches/devel')
+        self.assertEqual(externals['./lib/src/libl3']['original_base_url'],'http://libraries/libl3')
+        self.assertEqual(externals['./lib/src/libl3']['base_url'],'https://libraries/libl3')
+        self.assertEqual(externals['./lib/src/libl3']['branchname'],'devel')
+        self.assertEqual(externals['./lib/src/libl3']['branchpath'],'origin/devel')
+
 if __name__ == '__main__':
+    if runtests:
+        unittest.main()
+
     # fetch before generating externals
     command = 'git svn fetch --all'
     if verbose:
