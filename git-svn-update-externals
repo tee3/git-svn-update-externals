@@ -166,43 +166,44 @@ def operate_on_externals_from_cwd(externals):
 
 def generate_svn_externals_from_cwd():
     data = ''
-    if not fake_input:
-        revision = None
-        command = 'git rev-parse HEAD'
-        if verbose or dryrun:
-            print 'running: %s' % (command)
-        if not dryrun:
-            # @todo for 2.7, data = subprocess.check_output(command, shell=True)
-            data = subprocess.Popen(command.split(), stdout=subprocess.PIPE).communicate()[0]
 
-            commitid = data
+    revision = None
+    command = 'git rev-parse HEAD'
+    if verbose or dryrun:
+        print 'running: %s' % (command)
+    if not dryrun:
+        # @todo for 2.7, data = subprocess.check_output(command, shell=True)
+        data = subprocess.Popen(command.split(), stdout=subprocess.PIPE).communicate()[0]
 
-            if commitid is not None:
-                command = 'git svn find-rev %s' % (commitid)
-                if verbose or dryrun:
-                    print 'running: %s' % (command)
-                if not dryrun:
-                    # @todo for 2.7, data = subprocess.check_output(command, shell=True)
-                    revision = subprocess.Popen(command.split(), stdout=subprocess.PIPE).communicate()[0]
-                    if revision == '':
-                        revision = None
+        commitid = data
 
-        command = 'git svn show-externals'
-        if revision is not None:
-            command += ' -r%s' % (revision)
-        if verbose or dryrun:
-            print 'running: %s' % (command)
-        if not dryrun:
-            # @todo for 2.7, data = subprocess.check_output(command, shell=True)
-            data = subprocess.Popen(command.split(), stdout=subprocess.PIPE).communicate()[0]
-    else:
-        data = fake_data
+        if commitid is not None:
+            command = 'git svn find-rev %s' % (commitid)
+            if verbose or dryrun:
+                print 'running: %s' % (command)
+            if not dryrun:
+                # @todo for 2.7, data = subprocess.check_output(command, shell=True)
+                revision = subprocess.Popen(command.split(), stdout=subprocess.PIPE).communicate()[0]
+                if revision == '':
+                    revision = None
+
+    command = 'git svn show-externals'
+    if revision is not None:
+        command += ' -r%s' % (revision)
+    if verbose or dryrun:
+        print 'running: %s' % (command)
+    if not dryrun:
+        # @todo for 2.7, data = subprocess.check_output(command, shell=True)
+        data = subprocess.Popen(command.split(), stdout=subprocess.PIPE).communicate()[0]
 
     return data
 
 
 def git_svn_update_externals(directory):
-    data = generate_svn_externals_from_cwd()
+    if not fake_input:
+        data = generate_svn_externals_from_cwd()
+    else:
+        data = fake_data
     externals = parse_svn_externals_format(data)
 
     # @todo check if any differences before doing anything at all
